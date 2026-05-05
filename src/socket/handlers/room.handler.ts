@@ -1,11 +1,11 @@
 import { Socket, Server } from 'socket.io'
 import { roomService } from '../../services/room.service'
+import { authService } from '../../services/auth.service'
 import { Player } from '../../models/Player'
 import type {
   ClientToServerEvents,
   ServerToClientEvents,
-  SocketData,
-  RoomData
+  SocketData
 } from '../../types'
 
 type TypedSocket = Socket<ClientToServerEvents, ServerToClientEvents, {}, SocketData>
@@ -21,7 +21,7 @@ export class RoomHandler {
   registerHandlers(socket: TypedSocket): void {
     socket.on('room:create', (data: { name: string; maxPlayers: number }) =>
       this.handleCreateRoom(socket, data))
-    socket.on('room:join', (data: { roomId: string; nickname: string }) =>
+    socket.on('room:join', (data: { roomId: string }) =>
       this.handleJoinRoom(socket, data))
     socket.on('room:leave', (data: { roomId: string }) =>
       this.handleLeaveRoom(socket, data))
@@ -34,29 +34,26 @@ export class RoomHandler {
     socket: TypedSocket,
     data: { name: string; maxPlayers: number }
   ): void {
-    const playerId = socket.data.playerId
-    const nickname = socket.data.nickname || `玩家${playerId.slice(0, 4)}`
+    const { userId, playerId, nickname, avatar } = socket.data
 
     const room = roomService.createRoom(data.name, playerId, data.maxPlayers)
-    const player = new Player(nickname, socket.id, true)
+    const player = new Player(userId, nickname, avatar, socket.id, true)
 
     room.addPlayer(player)
     roomService.setPlayerRoom(playerId, room.id)
 
     socket.join(room.id)
     socket.data.roomId = room.id
-    socket.data.nickname = nickname
 
     console.log(`[Room] 房间创建: ${room.id} by ${nickname}`)
 
     socket.emit('room:created', { room: room.toJSON() })
-
     this.broadcastRoomsUpdate()
   }
 
   private handleJoinRoom(
     socket: TypedSocket,
-    data: { roomId: string; nickname: string }
+    data: { roomId: string }
   ): void {
     const room = roomService.getRoom(data.roomId)
 
@@ -70,28 +67,24 @@ export class RoomHandler {
       return
     }
 
-    if (room.isFull()) {
+    if (room.isFull() && !room.hasPlayer(socket.data.playerId)) {
       socket.emit('room:error', { message: '房间已满' })
       return
     }
 
-    const playerId = socket.data.playerId
-    const nickname = data.nickname || `玩家${playerId.slice(0, 4)}`
-    const player = new Player(nickname, socket.id, false)
+    const { userId, playerId, nickname, avatar } = socket.data
+    const player = new Player(userId, nickname, avatar, socket.id, false)
 
     room.addPlayer(player)
     roomService.setPlayerRoom(playerId, room.id)
 
     socket.join(room.id)
     socket.data.roomId = room.id
-    socket.data.nickname = nickname
 
     console.log(`[Room] 玩家加入: ${nickname} -> ${room.id}`)
 
-    socket.emit('room:joined', { room: room.toJSON(), player: player.toJSON() })
-
+    socket.emit('room:joined', { room: room.toJSON(), player: room.getPlayer(playerId)!.toJSON() })
     socket.to(room.id).emit('room:updated', { room: room.toJSON() })
-
     this.broadcastRoomsUpdate()
   }
 
@@ -120,9 +113,19 @@ export class RoomHandler {
 
   private handleDisconnect(socket: TypedSocket): void {
     const roomId = socket.data.roomId
+    const playerId = socket.data.playerId
+
     if (roomId) {
-      this.leaveRoom(socket, roomId)
+      const room = roomService.getRoom(roomId)
+      if (room) {
+        // 标记玩家断开但先不移除，给一定重连时间
+        const player = room.getPlayer(playerId)
+        if (player) {
+          console.log(`[Room] 玩家断开连接: ${player.nickname}，等待重连...`)
+        }
+      }
     }
+
     console.log(`[Socket] 客户端断开: ${socket.id}`)
   }
 

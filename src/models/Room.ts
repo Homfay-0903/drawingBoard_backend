@@ -5,8 +5,8 @@ import type { RoomData, RoomStatus } from '../types'
 export class Room {
   id: string
   name: string
-  hostId: string
-  players: Map<string, Player>
+  hostId: string              // 房主的 player.id（即 user_{userId}）
+  players: Map<string, Player>  // key 为 player.id
   maxPlayers: number
   status: RoomStatus
   currentRound: number
@@ -35,6 +35,12 @@ export class Room {
 
   addPlayer(player: Player): boolean {
     if (this.isFull()) return false
+    // 如果玩家已在房间中（重连），更新 socketId
+    if (this.players.has(player.id)) {
+      const existing = this.players.get(player.id)!
+      existing.updateSocketId(player.socketId)
+      return true
+    }
     this.players.set(player.id, player)
     return true
   }
@@ -49,6 +55,11 @@ export class Room {
 
   getPlayer(playerId: string): Player | undefined {
     return this.players.get(playerId)
+  }
+
+  // 通过数据库 userId 查找玩家
+  getPlayerByUserId(userId: number): Player | undefined {
+    return this.players.get(`user_${userId}`)
   }
 
   getPlayerBySocketId(socketId: string): Player | undefined {
@@ -77,14 +88,14 @@ export class Room {
   transferHost(newHostId: string): boolean {
     const oldHost = this.getPlayer(this.hostId)
     const newHost = this.getPlayer(newHostId)
-    
+
     if (!newHost) return false
-    
+
     if (oldHost) {
       oldHost.isHost = false
       oldHost.isReady = oldHost.isReady
     }
-    
+
     this.hostId = newHostId
     newHost.isHost = true
     newHost.isReady = true
@@ -115,7 +126,8 @@ export class Room {
       currentDrawerId: this.currentDrawerId,
       currentWord: this.currentWord,
       wordHints: this.wordHints,
-      drawTime: this.drawTime
+      drawTime: this.drawTime,
+      canStartGame: this.canStartGame()
     }
   }
 }

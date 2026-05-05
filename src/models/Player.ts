@@ -1,22 +1,21 @@
-import { v4 as uuidv4 } from 'uuid'
 import type { PlayerData } from '../types'
 
 export class Player {
-  id: string
+  userId: number          // 数据库用户 ID（唯一标识）
   nickname: string
   avatar: string
   score: number
   isReady: boolean
   isDrawing: boolean
   hasGuessed: boolean
-  socketId: string
+  socketId: string        // 当前 socket 连接 ID（可变）
   isHost: boolean
   joinedAt: Date
 
-  constructor(nickname: string, socketId: string, isHost: boolean = false) {
-    this.id = uuidv4()
+  constructor(userId: number, nickname: string, avatar: string, socketId: string, isHost: boolean = false) {
+    this.userId = userId
     this.nickname = nickname
-    this.avatar = this.generateAvatar()
+    this.avatar = avatar
     this.score = 0
     this.isReady = isHost
     this.isDrawing = false
@@ -26,9 +25,14 @@ export class Player {
     this.joinedAt = new Date()
   }
 
-  private generateAvatar(): string {
-    const avatars = ['🐱', '🐶', '🐰', '🦊', '🐼', '🐨', '🦁', '🐯', '🐮', '🐷']
-    return avatars[Math.floor(Math.random() * avatars.length)]
+  // 用 userId 作为唯一标识（不再用 UUID）
+  get id(): string {
+    return `user_${this.userId}`
+  }
+
+  // 更新 socketId（重连时使用）
+  updateSocketId(newSocketId: string): void {
+    this.socketId = newSocketId
   }
 
   reset(): void {
@@ -41,6 +45,7 @@ export class Player {
   toJSON(): PlayerData {
     return {
       id: this.id,
+      userId: this.userId,
       nickname: this.nickname,
       avatar: this.avatar,
       score: this.score,

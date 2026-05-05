@@ -69,10 +69,10 @@ export class GameHandler {
     if (!player) return
 
     const game = this.gameService.getGame(data.roomId)
-    
+
     if (game && game.status === 'drawing' && !player.isDrawing) {
       const isCorrect = this.gameService.guessWord(room, game, player.id, data.message)
-      
+
       if (isCorrect) {
         this.io.to(room.id).emit('chat:message', {
           playerId: player.id,

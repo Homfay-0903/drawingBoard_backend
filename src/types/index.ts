@@ -15,6 +15,7 @@ export interface DrawingElement {
 
 export interface PlayerData {
   id: string
+  userId: number            // 数据库用户 ID
   nickname: string
   avatar: string
   score: number
@@ -40,6 +41,7 @@ export interface RoomData {
   currentWord: string | null
   wordHints: string[]
   drawTime: number
+  canStartGame: boolean
 }
 
 export type GameStatus = 'waiting' | 'selecting' | 'drawing' | 'roundEnd' | 'gameEnd'
@@ -84,7 +86,7 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   'room:create': (data: { name: string; maxPlayers: number }) => void
-  'room:join': (data: { roomId: string; nickname: string }) => void
+  'room:join': (data: { roomId: string }) => void
   'room:leave': (data: { roomId: string }) => void
   'room:ready': (data: { roomId: string }) => void
   'game:start': (data: { roomId: string }) => void
@@ -99,7 +101,9 @@ export interface InterServerEvents {
 }
 
 export interface SocketData {
-  playerId: string
+  userId: number            // 数据库用户 ID（核心标识）
+  playerId: string          // player.id = user_{userId}
   roomId: string | null
   nickname: string
+  avatar: string
 }
